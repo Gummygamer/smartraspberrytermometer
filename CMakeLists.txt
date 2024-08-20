@@ -61,8 +61,8 @@ pico_enable_stdio_uart(LED 0)
 pico_enable_stdio_usb(LED 0)
 
 # Add the standard library to the build
-target_link_libraries(LED
-        pico_stdlib)
+target_link_libraries(LED pico_stdlib hardware_adc hardware_pwm)
+
 
 # Add the standard include files to the build
 target_include_directories(LED PRIVATE
