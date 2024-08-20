@@ -51,17 +51,17 @@ pico_sdk_init()
 add_executable(LED LED.c )
 
 pico_set_program_name(LED "LED")
-pico_set_program_version(LED "0.1")
+pico_set_program_version(LED "0.2")
 
 # Generate PIO header
 pico_generate_pio_header(LED ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(LED 0)
-pico_enable_stdio_usb(LED 0)
+pico_enable_stdio_usb(LED 1)
 
 # Add the standard library to the build
-target_link_libraries(LED pico_stdlib hardware_adc hardware_pwm)
+target_link_libraries(LED pico_stdlib hardware_adc hardware_pwm hardware_flash)
 
 
 # Add the standard include files to the build
