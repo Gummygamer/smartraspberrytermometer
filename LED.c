@@ -10,9 +10,9 @@
 
 #define LED_PIN PICO_DEFAULT_LED_PIN
 #define TEMP_SENSOR 4  // ADC channel 4 is connected to the internal temperature sensor
-#define BASE_TEMP 23.0f  // Base temperature
+#define BASE_TEMP 23.0f  // Base temperature (LED off)
+#define MAX_TEMP 33.0f   // Maximum temperature (LED full brightness)
 #define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
-
 
 float read_temperature() {
     adc_select_input(TEMP_SENSOR);
@@ -22,25 +22,17 @@ float read_temperature() {
     return temperature;
 }
 
-void set_led_brightness(float brightness) {
-    // The PWM counter runs at 125MHz. Dividing by 255 gives us a range of 0-490,196 for the PWM level
-    uint16_t pwm_level = (uint16_t)(brightness * 490196.0f);
-    pwm_set_gpio_level(LED_PIN, pwm_level);
-}
-
-void blink_binary(int value) {
-    printf("Binary representation: ");
-    for (int i = 7; i >= 0; i--) {  // 8-bit representation
-        int bit = (value >> i) & 1;
-        printf("%d", bit);
-        pwm_set_gpio_level(LED_PIN, bit ? 65535 : 0);  // Full on for 1, off for 0
-        sleep_ms(1000);  // Each bit lasts for 1 second
+void set_led_brightness(float temperature) {
+    float brightness;
+    if (temperature <= BASE_TEMP) {
+        brightness = 0.0f;
+    } else if (temperature >= MAX_TEMP) {
+        brightness = 1.0f;
+    } else {
+        brightness = (temperature - BASE_TEMP) / (MAX_TEMP - BASE_TEMP);
     }
-    printf("\n");
-
-    // Turn off LED for 4 seconds after the pattern
-    pwm_set_gpio_level(LED_PIN, 0);
-    sleep_ms(4000);
+    uint16_t pwm_level = (uint16_t)(brightness * 65535.0f);
+    pwm_set_gpio_level(LED_PIN, pwm_level);
 }
 
 void save_to_flash(int value) {
@@ -66,13 +58,10 @@ int main() {
     sleep_ms(2000);
 
     gpio_init(LED_PIN);
-
     gpio_set_function(LED_PIN, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(LED_PIN);
     pwm_set_wrap(slice_num, 65535);
     pwm_set_enabled(slice_num, true);
-
-    gpio_set_dir(LED_PIN, GPIO_OUT);
 
     adc_init();
     adc_set_temp_sensor_enabled(true);
@@ -87,12 +76,14 @@ int main() {
         printf("Temperature: %.2f C\n", temp);
         printf("Rounded difference from %.1f C: %d\n", BASE_TEMP, temp_diff);
 
+        set_led_brightness(temp);
+
         if (temp_diff != last_saved_diff) {
             save_to_flash(temp_diff);
             last_saved_diff = temp_diff;
         }
 
-        blink_binary(temp_diff);
+        sleep_ms(1000);  // Update every second
     }
 
     return 0;
