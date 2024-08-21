@@ -1,9 +1,20 @@
 import serial
 import time
+import re
 
-# Adjust the port name as needed (e.g., 'COM3' on Windows)
 SERIAL_PORT = '/dev/ttyACM0'  # Typical for Linux
 BAUD_RATE = 115200
+BASE_TEMP = 23.0
+
+def extract_temperature_history(line):
+    match = re.search(r'Temperature history:?\s*([-\d\s]+)', line)
+    if match:
+        values = [int(x) for x in match.group(1).split()]
+        return values
+    return None
+
+def convert_to_real_temperatures(differences):
+    return [BASE_TEMP + diff for diff in differences if diff >= 0]
 
 def read_temperature_data():
     try:
@@ -14,6 +25,12 @@ def read_temperature_data():
                 if ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
                     print(line)
+                
+                    temp_differences = extract_temperature_history(line)
+                    if temp_differences is not None:
+                        real_temps = convert_to_real_temperatures(temp_differences)
+                        print(f"Actual temperatures: {real_temps}")
+                        print(f"Number of valid temperatures: {len(real_temps)}")
                 
                 time.sleep(0.1)
                 
