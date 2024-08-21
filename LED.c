@@ -9,50 +9,49 @@
 #include "hardware/pwm.h"
 
 #define LED_PIN PICO_DEFAULT_LED_PIN
-#define TEMP_SENSOR 4  // ADC channel 4 is connected to the internal temperature sensor
-#define BASE_TEMP 23.0f  // Base temperature (LED off)
-#define MAX_TEMP 33.0f   // Maximum temperature (LED full brightness)
+#define TEMP_SENSOR 4
+#define BASE_TEMP 23.0f
+#define MAX_TEMP 33.0f
 #define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+#define HISTORY_SIZE 100
 
 float read_temperature() {
     adc_select_input(TEMP_SENSOR);
     uint16_t raw = adc_read();
-    float voltage = raw * 3.3f / (1 << 12);  // Convert to voltage
-    float temperature = 27 - (voltage - 0.706) / 0.001721;  // Convert to temperature in Celsius
+    float voltage = raw * 3.3f / (1 << 12);
+    float temperature = 27 - (voltage - 0.706) / 0.001721;
     return temperature;
 }
 
 void set_led_brightness(float temperature) {
-    float brightness;
-    if (temperature <= BASE_TEMP) {
-        brightness = 0.0f;
-    } else if (temperature >= MAX_TEMP) {
-        brightness = 1.0f;
-    } else {
-        brightness = (temperature - BASE_TEMP) / (MAX_TEMP - BASE_TEMP);
-    }
+    float brightness = (temperature <= BASE_TEMP) ? 0.0f :
+                       (temperature >= MAX_TEMP) ? 1.0f :
+                       (temperature - BASE_TEMP) / (MAX_TEMP - BASE_TEMP);
     uint16_t pwm_level = (uint16_t)(brightness * 65535.0f);
     pwm_set_gpio_level(LED_PIN, pwm_level);
 }
 
-void save_to_flash(int value) {
+void save_to_flash(int8_t *history, int count) {
     uint8_t buffer[FLASH_PAGE_SIZE];
     memset(buffer, 0, FLASH_PAGE_SIZE);
-    buffer[0] = (uint8_t)value;
-
-    printf("Will save value %d to flash\n", value);
-
-    // Erase the sector before writing
-    flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
-
-    // Program the flash
+    memcpy(buffer, history, count);
+    //flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
     flash_range_program(FLASH_TARGET_OFFSET, buffer, FLASH_PAGE_SIZE);
 
-    printf("Saved value %d to flash\n", value);
+    printf("Saved %d temperature differences to flash\n", count);
 }
 
-int read_from_flash() {
-    return *(uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+void read_from_flash(int8_t *history, int *count) {
+    const int8_t *flash_data = (const int8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+    *count = 0;
+    
+    for (int i = 0; i < HISTORY_SIZE; i++) {
+        //if (flash_data[i] == -128) break;  // Use -128 as end marker
+        history[i] = flash_data[i];
+        (*count)++;
+    }
+
+    printf("Read %d temperature differences from flash\n", *count);
 }
 
 int main() {
@@ -68,11 +67,11 @@ int main() {
     adc_init();
     adc_set_temp_sensor_enabled(true);
 
-    int last_saved_diff = read_from_flash();
-    printf("Last saved temperature difference: %d\n", last_saved_diff);
+    int8_t temp_history[HISTORY_SIZE];
+    int history_count = 0;
 
+    read_from_flash(temp_history, &history_count);
     while (1) {
-        printf("Last saved temperature difference: %d\n", last_saved_diff);
         float temp = read_temperature();
         int temp_diff = (int)roundf(temp - BASE_TEMP);
         
@@ -81,12 +80,22 @@ int main() {
 
         set_led_brightness(temp);
 
-        if (temp_diff != last_saved_diff) {
-            save_to_flash(temp_diff);
-            last_saved_diff = temp_diff;
+        if (history_count == 0 || temp_diff != temp_history[history_count - 1]) {
+            if (history_count == HISTORY_SIZE) {
+                memmove(temp_history, temp_history + 1, HISTORY_SIZE - 1);
+                history_count--;
         }
+            temp_history[history_count++] = (int8_t)temp_diff;
+            save_to_flash(temp_history, history_count);
+    }
 
-        sleep_ms(1000);  // Update every second
+        printf("Temperature history: ");
+        for (int i = 0; i < history_count; i++) {
+            printf("%d ", temp_history[i]);
+}
+        printf("\n");
+
+        sleep_ms(1000);
     }
 
     return 0;
