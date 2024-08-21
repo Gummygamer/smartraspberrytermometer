@@ -13,17 +13,7 @@ def read_temperature_data():
             while True:
                 if ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
-                    if line.startswith("Temperature:"):
-                        print(line)
-                    elif line.startswith("Rounded difference"):
-                        print(line)
-                    #elif line.startswith("Binary representation:"):
-                    #    binary = ser.readline().decode('utf-8').strip()
-                    #    print(f"Binary: {binary}")
-                    #    decimal = int(binary, 2)
-                    #    print(f"Decimal: {decimal}")
-                    #    print(f"Temperature difference: {decimal}°C")
-                    #    print("--------------------")
+                    print(line)
                 
                 time.sleep(0.1)
                 

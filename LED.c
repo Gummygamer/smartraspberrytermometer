@@ -40,6 +40,8 @@ void save_to_flash(int value) {
     memset(buffer, 0, FLASH_PAGE_SIZE);
     buffer[0] = (uint8_t)value;
 
+    printf("Will save value %d to flash\n", value);
+
     // Erase the sector before writing
     flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
 
@@ -70,6 +72,7 @@ int main() {
     printf("Last saved temperature difference: %d\n", last_saved_diff);
 
     while (1) {
+        printf("Last saved temperature difference: %d\n", last_saved_diff);
         float temp = read_temperature();
         int temp_diff = (int)roundf(temp - BASE_TEMP);
         
